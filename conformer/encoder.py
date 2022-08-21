@@ -59,9 +59,9 @@ class ConformerBlock(nn.Module):
             num_attention_heads: int = 8,
             feed_forward_expansion_factor: int = 4,
             conv_expansion_factor: int = 2,
-            feed_forward_dropout_p: float = 0.1,
-            attention_dropout_p: float = 0.1,
-            conv_dropout_p: float = 0.1,
+            feed_forward_dropout_p: float = 0.3,
+            attention_dropout_p: float = 0.3,
+            conv_dropout_p: float = 0.3,
             conv_kernel_size: int = 31,
             half_step_residual: bool = True,
     ):
@@ -144,10 +144,10 @@ class ConformerEncoder(nn.Module):
             num_attention_heads: int = 8,
             feed_forward_expansion_factor: int = 4,
             conv_expansion_factor: int = 2,
-            input_dropout_p: float = 0.1,
-            feed_forward_dropout_p: float = 0.1,
-            attention_dropout_p: float = 0.1,
-            conv_dropout_p: float = 0.1,
+            input_dropout_p: float = 0.3,
+            feed_forward_dropout_p: float = 0.3,
+            attention_dropout_p: float = 0.3,
+            conv_dropout_p: float = 0.3,
             conv_kernel_size: int = 31,
             half_step_residual: bool = True,
     ):
@@ -179,7 +179,7 @@ class ConformerEncoder(nn.Module):
             if isinstance(child, nn.Dropout):
                 child.p = dropout_p
 
-    def forward(self, inputs: Tensor, input_lengths: Tensor) -> Tuple[Tensor, Tensor]:
+    def forward(self, inputs: Tensor) -> Tensor:
         """
         Forward propagate a `inputs` for  encoder training.
 
@@ -195,10 +195,10 @@ class ConformerEncoder(nn.Module):
                 ``(batch, seq_length, dimension)``
             * output_lengths (torch.LongTensor): The length of output tensor. ``(batch)``
         """
-        outputs, output_lengths = self.conv_subsample(inputs, input_lengths)
+        outputs = self.conv_subsample(inputs)
         outputs = self.input_projection(outputs)
 
         for layer in self.layers:
             outputs = layer(outputs)
 
-        return outputs, output_lengths
+        return outputs

@@ -127,7 +127,7 @@ class ConformerConvModule(nn.Module):
             in_channels: int,
             kernel_size: int = 31,
             expansion_factor: int = 2,
-            dropout_p: float = 0.1,
+            dropout_p: float = 0.3,
     ) -> None:
         super(ConformerConvModule, self).__init__()
         assert (kernel_size - 1) % 2 == 0, "kernel_size should be a odd number for 'SAME' padding"
@@ -173,14 +173,11 @@ class Conv2dSubampling(nn.Module):
             nn.ReLU(),
         )
 
-    def forward(self, inputs: Tensor, input_lengths: Tensor) -> Tuple[Tensor, Tensor]:
+    def forward(self, inputs: Tensor) -> Tensor:
         outputs = self.sequential(inputs.unsqueeze(1))
         batch_size, channels, subsampled_lengths, sumsampled_dim = outputs.size()
 
         outputs = outputs.permute(0, 2, 1, 3)
         outputs = outputs.contiguous().view(batch_size, subsampled_lengths, channels * sumsampled_dim)
 
-        output_lengths = input_lengths >> 2
-        output_lengths -= 1
-
-        return outputs, output_lengths
+        return outputs

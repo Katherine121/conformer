@@ -14,6 +14,7 @@
 
 import torch
 import torch.nn as nn
+from thop import profile
 from torch import Tensor
 from typing import Tuple
 
@@ -58,10 +59,10 @@ class Conformer(nn.Module):
             num_attention_heads: int = 8,
             feed_forward_expansion_factor: int = 4,
             conv_expansion_factor: int = 2,
-            input_dropout_p: float = 0.1,
-            feed_forward_dropout_p: float = 0.1,
-            attention_dropout_p: float = 0.1,
-            conv_dropout_p: float = 0.1,
+            input_dropout_p: float = 0.3,
+            feed_forward_dropout_p: float = 0.3,
+            attention_dropout_p: float = 0.3,
+            conv_dropout_p: float = 0.3,
             conv_kernel_size: int = 31,
             half_step_residual: bool = True,
     ) -> None:
@@ -80,7 +81,7 @@ class Conformer(nn.Module):
             conv_kernel_size=conv_kernel_size,
             half_step_residual=half_step_residual,
         )
-        self.fc = Linear(encoder_dim, num_classes, bias=False)
+        self.fc = Linear(encoder_dim, 2 * num_classes, bias=False)
 
     def count_parameters(self) -> int:
         """ Count parameters of encoder """
@@ -90,7 +91,7 @@ class Conformer(nn.Module):
         """ Update dropout probability of model """
         self.encoder.update_dropout(dropout_p)
 
-    def forward(self, inputs: Tensor, input_lengths: Tensor) -> Tuple[Tensor, Tensor]:
+    def forward(self, inputs: Tensor) -> Tensor:
         """
         Forward propagate a `inputs` and `targets` pair for training.
 
@@ -102,7 +103,9 @@ class Conformer(nn.Module):
         Returns:
             * predictions (torch.FloatTensor): Result of model predictions.
         """
-        encoder_outputs, encoder_output_lengths = self.encoder(inputs, input_lengths)
+        b, seq_len, dim = inputs.size()
+        encoder_outputs = self.encoder(inputs)
         outputs = self.fc(encoder_outputs)
-        outputs = nn.functional.log_softmax(outputs, dim=-1)
-        return outputs, encoder_output_lengths
+        # outputs = nn.functional.log_softmax(outputs, dim=-1)
+        outputs = outputs.reshape(-1, seq_len, 2)
+        return outputs

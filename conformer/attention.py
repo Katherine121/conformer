@@ -47,7 +47,7 @@ class RelativeMultiHeadAttention(nn.Module):
             self,
             d_model: int = 512,
             num_heads: int = 16,
-            dropout_p: float = 0.1,
+            dropout_p: float = 0.3,
     ):
         super(RelativeMultiHeadAttention, self).__init__()
         assert d_model % num_heads == 0, "d_model % num_heads should be zero."
@@ -133,7 +133,7 @@ class MultiHeadedSelfAttentionModule(nn.Module):
     Returns:
         - **outputs** (batch, time, dim): Tensor produces by relative multi headed self attention module.
     """
-    def __init__(self, d_model: int, num_heads: int, dropout_p: float = 0.1):
+    def __init__(self, d_model: int, num_heads: int, dropout_p: float = 0.3):
         super(MultiHeadedSelfAttentionModule, self).__init__()
         self.positional_encoding = PositionalEncoding(d_model)
         self.layer_norm = nn.LayerNorm(d_model)
