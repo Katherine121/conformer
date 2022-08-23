@@ -28,8 +28,9 @@ def get_data(datapath, path_len=15, seq_len=10):
     file1 = open(datapath + "//" + "all_label.txt", 'r')
     for pos in file1:
         pos = pos.strip('\n')  # 将\n去掉
-        pos = pos.split(' ')  # 按照逗号分开
-        pos = [float(pos[i]) * 100000 for i in range(0, 2*path_len)]  # 去掉最后的”“
+        pos = pos.split(' ')[:2*path_len]  # 按照逗号分开
+        # 注意这里是5个0
+        pos = [float(pos[i]) * 100000 for i in range(0, 2*path_len)]
         pos = [pos[i:i + 2] for i in range(0, len(pos), 2)]  # 两个一组
 
         first = []
@@ -137,11 +138,11 @@ if __name__ == "__main__":
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
 
+    # 1：3088+22206 *2*0.8*2
     trainDataset = TrainDataset(transform=transform, datapath=".", pic_path="../whole_path",
                                 path_len=15, seq_len=10)
-    # print(len(trainDataset)) 41236
     trainLoader = DataLoader(trainDataset,
                              batch_size=32, shuffle=False, drop_last=False)
+    # 1：3088+22206 *2*0.2
     testDataset = TestDataset(transform=transform, datapath=".", pic_path="../whole_path",
                               path_len=15, seq_len=10)
-    # print(len(testDataset)) 10310

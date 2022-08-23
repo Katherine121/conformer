@@ -10,7 +10,7 @@ import os
 from torchvision import transforms
 
 
-def get_data(datapath, path_len=11, seq_len=10):
+def get_data(datapath, path_len=15, seq_len=10):
     all_path = []
     all_labels = []
     all_pos = []
@@ -22,6 +22,7 @@ def get_data(datapath, path_len=11, seq_len=10):
 
         # 图片路径
         all_path.append(path[:seq_len])
+        all_path.append(path[-1:-(seq_len + 1):-1])
     file1.close()
 
     file1 = open(datapath + "//" + "all_label.txt", 'r')
@@ -35,12 +36,17 @@ def get_data(datapath, path_len=11, seq_len=10):
         first = []
         for i in range(1, seq_len+1):
             first.append((pos[i][0] - pos[i - 1][0], pos[i][1] - pos[i - 1][1]))
+        second = []
+        for i in range(-2, -(seq_len + 2), -1):
+            second.append((pos[i][0] - pos[i + 1][0], pos[i][1] - pos[i + 1][1]))
 
         # 预测下一张图片的位移
         all_labels.append(first)
+        all_labels.append(second)
 
         # 当前图片的位置
         all_pos.append(pos[:seq_len])
+        all_pos.append(pos[-1:-(seq_len + 1):-1])
     file1.close()
 
     return all_path, all_labels, all_pos
@@ -129,11 +135,11 @@ if __name__ == "__main__":
         transforms.ToTensor(),
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
-    # 28058
+    # 2：28058 3：34313*2*0.8*2
     trainDataset = TrainDataset(transform=transform, datapath=".",
-                                path_len=11, seq_len=10)
+                                path_len=15, seq_len=10)
     trainLoader = DataLoader(trainDataset,
                              batch_size=32, shuffle=False, drop_last=False)
-    # 7015
+    # 2：7015  3：34313*2*0.2
     testDataset = TestDataset(transform=transform, datapath=".",
-                              path_len=11, seq_len=10)
+                              path_len=15, seq_len=10)

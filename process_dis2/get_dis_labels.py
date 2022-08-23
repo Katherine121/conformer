@@ -55,11 +55,11 @@ def gene_path(path):
             one_labels.append(list(map(eval, [lat_pos, alt_pos, lon_pos, start])))
 
         # 选择十一张图片，方便计算位移
-        for i in range(0, len(one_path) - 10):
+        for i in range(0, len(one_path) - 14):
             # 不选择终点图片
-            all_path.append(one_path[i: i+11])
+            all_path.append(one_path[i: i+15])
             # 加入下一时刻的位移
-            all_labels.append(one_labels[i: i+11])
+            all_labels.append(one_labels[i: i+15])
 
     print("gene_path: all_path num is " + str(len(all_path)))
 
@@ -89,4 +89,4 @@ if __name__ == "__main__":
     # 原数据集的方向
     all_path, all_label = gene_path(path)
 
-    write_path(all_path, all_label)
+    # write_path(all_path, all_label)

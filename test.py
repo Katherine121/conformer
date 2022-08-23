@@ -11,8 +11,8 @@ import numpy as np
 from torchvision.transforms import autoaugment
 
 from conformer import Conformer
-# from process_dis.dis_dataloader import TrainDataset, TestDataset
-from process_dis2.dis_dataloader import TrainDataset, TestDataset
+from process_dis.dis_dataloader import TrainDataset, TestDataset
+# from process_dis2.dis_dataloader import TrainDataset, TestDataset
 
 
 def check_accuracy(loader, model, device=None):
@@ -41,15 +41,15 @@ def check_accuracy(loader, model, device=None):
                 outputs[:, i, :] = pos[:, i, :] + outputs[:, i, :]
 
             # 理论下一个位置的经纬度
-            # lat = y / 100000
-            lat = y / 10000
+            lat = y / 100000
+            # lat = y / 10000
 
             # 输出与理论下一个位置的经纬度误差
             diff = torch.abs(outputs - y)
 
             # 输出与理论下一个位置的纬度误差的米
-            # diff *= 1.11
-            diff *= 11.1
+            diff *= 1.11
+            # diff *= 11.1
             # 输出与理论下一个位置的经度误差的米
             diff[:, :, 1] *= torch.cos(lat[:, :, 0] * math.pi / 180)
 
@@ -73,10 +73,10 @@ if __name__ == '__main__':
     print('############################### Dataset loading ###############################')
 
     # 记得修改check_accuracy / 100000
-    path_len = 11
+    path_len = 15
     seq_len = 10
-    datapath = "process_dis2"
-    check_point_dir = "saved_model2"
+    datapath = "process_dis"
+    check_point_dir = "saved_model"
 
     transform = transforms.Compose([
         transforms.Resize((160, 90)),
@@ -84,7 +84,7 @@ if __name__ == '__main__':
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
     # 原图
-    testDataset = TestDataset(transform=transform, datapath=datapath,
+    testDataset = TestDataset(transform=transform, datapath=datapath, pic_path="whole_path",
                               path_len=path_len, seq_len=seq_len)
 
     testLoader = DataLoader(testDataset,
