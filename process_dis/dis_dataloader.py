@@ -15,7 +15,7 @@ def get_data(datapath, path_len=15, seq_len=10):
     all_labels = []
     all_pos = []
 
-    file1 = open(datapath + "//" + "all_path.txt", 'r')
+    file1 = open(datapath + "/" + "all_path.txt", 'r')
     for path in file1:
         path = path.strip('\n')  # 将\n去掉
         path = path.split(' ')[:path_len]  # 按照逗号分开
@@ -25,12 +25,12 @@ def get_data(datapath, path_len=15, seq_len=10):
         all_path.append(path[-1:-(seq_len+1):-1])
     file1.close()
 
-    file1 = open(datapath + "//" + "all_label.txt", 'r')
+    file1 = open(datapath + "/" + "all_label.txt", 'r')
     for pos in file1:
         pos = pos.strip('\n')  # 将\n去掉
         pos = pos.split(' ')[:2*path_len]  # 按照逗号分开
         # 注意这里是5个0
-        pos = [float(pos[i]) * 100000 for i in range(0, 2*path_len)]
+        pos = [float(pos[i]) * 10000 for i in range(0, 2*path_len)]
         pos = [pos[i:i + 2] for i in range(0, len(pos), 2)]  # 两个一组
 
         first = []
@@ -53,9 +53,8 @@ def get_data(datapath, path_len=15, seq_len=10):
 
 
 class TrainDataset(Dataset):
-    def __init__(self, transform, datapath, pic_path, path_len, seq_len):
+    def __init__(self, transform, datapath, path_len, seq_len):
         self.transform = transform
-        self.pic_path = pic_path
         res = []
         all_path, all_labels, all_pos = get_data(datapath=datapath, path_len=path_len, seq_len=seq_len)
         for i in range(0, len(all_path)):
@@ -75,7 +74,8 @@ class TrainDataset(Dataset):
         # seq_len, c*h*w
         pics = None
         for pic in path:
-            pic = Image.open(self.pic_path + "/" + pic)
+            # 将../转换成./
+            pic = Image.open(pic[1:])
             pic = pic.convert('RGB')
             pic = self.transform(pic)
 
@@ -92,9 +92,8 @@ class TrainDataset(Dataset):
 
 
 class TestDataset(Dataset):
-    def __init__(self, transform, datapath, pic_path, path_len, seq_len):
+    def __init__(self, transform, datapath, path_len, seq_len):
         self.transform = transform
-        self.pic_path = pic_path
         res = []
         all_path, all_labels, all_pos = get_data(datapath=datapath, path_len=path_len, seq_len=seq_len)
         for i in range(0, len(all_path)):
@@ -114,7 +113,8 @@ class TestDataset(Dataset):
         # seq_len, c*h*w
         pics = None
         for pic in path:
-            pic = Image.open(self.pic_path + "/" + pic)
+            # 将../转换成./
+            pic = Image.open(pic[1:])
             pic = pic.convert('RGB')
             pic = self.transform(pic)
 
@@ -131,18 +131,17 @@ class TestDataset(Dataset):
 
 
 if __name__ == "__main__":
-    # get_data(datapath=".", path_len=15, seq_len=10)
     transform = transforms.Compose([
         transforms.Resize((256, 256)),
         transforms.ToTensor(),
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
 
-    # 1：3088+22206 *2*0.8*2
-    trainDataset = TrainDataset(transform=transform, datapath=".", pic_path="../whole_path",
+    # 1：31143+25598+9981 *0.8
+    trainDataset = TrainDataset(transform=transform, datapath=".",
                                 path_len=15, seq_len=10)
     trainLoader = DataLoader(trainDataset,
                              batch_size=32, shuffle=False, drop_last=False)
-    # 1：3088+22206 *2*0.2
-    testDataset = TestDataset(transform=transform, datapath=".", pic_path="../whole_path",
+    # 1：31143+25598+9981 *0.2
+    testDataset = TestDataset(transform=transform, datapath=".",
                               path_len=15, seq_len=10)

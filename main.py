@@ -7,16 +7,17 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 import numpy as np
 
+import autoaugment
 from conformer import Conformer
 from process_dis.dis_dataloader import TrainDataset, TestDataset
-# from process_dis2.dis_dataloader import TrainDataset, TestDataset
-from autoaugment import ImageNetPolicy
 
 
 def check_accuracy(loader, model, device=None):
     model.eval()
     total_diff = 0
     total_samples = 0
+    end_diff = 0
+    end_samples = 0
 
     with torch.no_grad():
         t = 0
@@ -32,22 +33,23 @@ def check_accuracy(loader, model, device=None):
             outputs = outputs.to(dtype=torch.float64)
 
             b, seq_len, _ = x.size()
-            for i in range(0, seq_len):
+
+            y[:, 0, :] += pos[:, 0, :]
+            outputs[:, 0, :] += pos[:, 0, :]
+            for i in range(1, seq_len):
                 # 理论起点+理论位移=理论下一个位置
-                y[:, i, :] = pos[:, i, :] + y[:, i, :]
+                y[:, i, :] += y[:, i - 1, :]
                 # 理论起点+输出位移=输出下一个位置
-                outputs[:, i, :] = pos[:, i, :] + outputs[:, i, :]
+                outputs[:, i, :] += outputs[:, i - 1, :]
 
             # 理论下一个位置的经纬度
-            lat = y / 100000
-            # lat = y / 10000
+            lat = y / 10000
 
             # 输出与理论下一个位置的经纬度误差
             diff = torch.abs(outputs - y)
 
             # 输出与理论下一个位置的纬度误差的米
-            diff *= 1.11
-            # diff *= 11.1
+            diff *= 11.1
             # 输出与理论下一个位置的经度误差的米
             diff[:, :, 1] *= torch.cos(lat[:, :, 0] * math.pi / 180)
 
@@ -55,14 +57,19 @@ def check_accuracy(loader, model, device=None):
             total_diff += diff.sum()
             total_samples += b * seq_len * 2
 
+            end_diff += diff[:, -1, :].sum()
+            end_samples += b * 2
+
             # 每800个iteration打印一次测试集准确率
             if t > 0 and t % 800 == 0:
                 print('下一个位置的经纬度的米的误差' + str(diff.sum() / b / seq_len / 2))
+                print('终点的经纬度的米的误差' + str(diff[:, -1, :].sum() / b / 2))
             t += 1
 
-        diff = float(total_diff) / total_samples
+        diff1 = float(total_diff) / total_samples
+        diff2 = float(end_diff) / end_samples
 
-    return diff
+    return diff1, diff2
 
 
 def train(
@@ -76,9 +83,10 @@ def train(
         epochs=300,
         check_point_dir=None
 ):
-    diff = 0
+    diff1 = 0
+    diff2 = 0
     losses = []
-    best_diff = 1.0286049388680993
+    best_diff = math.inf
 
     for e in range(epochs):
         model.train()
@@ -112,10 +120,12 @@ def train(
         total_loss /= t
         losses.append(total_loss)
 
-        diff = check_accuracy(loader_val, model, device=device)
+        diff1, diff2 = check_accuracy(loader_val, model, device=device)
 
         # 每个epoch记录一次测试集准确率和所有batch的平均训练损失
-        print("Epoch:" + str(e) + ', Val diff = ' + str(diff) +
+        print("Epoch:" + str(e) +
+              ', Val diff1 = ' + str(diff1) +
+              ', Val diff2 = ' + str(diff2) +
               ', average Loss = ' + str(total_loss))
 
         if os.path.exists(check_point_dir) is False:
@@ -127,19 +137,19 @@ def train(
         file1.close()
         # 将每个epoch的测试集准确率写入文件
         with open(check_point_dir + "/" + "testdiff.txt", "a") as file2:
-            file2.write(str(diff) + '\n')
+            file2.write(str(diff1) + ' ' + str(diff2) + '\n')
         file2.close()
 
         # 如果到了保存的epoch或者是训练完成的最后一个epoch
-        if diff < best_diff:
-            best_diff = diff
+        if diff2 < best_diff:
+            best_diff = diff2
             model.eval()
             # 保存模型参数
             torch.save(model.state_dict(), check_point_dir + "/" + "model.pth")
             # 保存模型结构
             torch.save(model, check_point_dir + "/" + "model.pt")
 
-    return diff
+    return diff1, diff2
 
 
 if __name__ == '__main__':
@@ -149,32 +159,32 @@ if __name__ == '__main__':
     path_len = 15
     seq_len = 10
     datapath = "process_dis"
-    check_point_dir = "saved_model"
+    check_point_dir = "saved_model2"
 
     transform = transforms.Compose([
         transforms.Resize((160, 90)),
         transforms.ToTensor(),
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
-    transform_aug = transforms.Compose([
-        transforms.Resize((160, 90)),
-        ImageNetPolicy(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-    ])
+    # transform_aug = transforms.Compose([
+    #     transforms.Resize((160, 90)),
+    #     autoaugment.CIFAR10Policy(),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+    # ])
 
     # 原图
-    trainDataset = TrainDataset(transform=transform, datapath=datapath, pic_path="whole_path",
+    trainDataset = TrainDataset(transform=transform, datapath=datapath,
                                 path_len=path_len, seq_len=seq_len)
-    # 数据增强
-    trainDataset_aug = TrainDataset(transform=transform_aug, datapath=datapath, pic_path="whole_path",
-                                    path_len=path_len, seq_len=seq_len)
+    # # 数据增强
+    # trainDataset_aug = TrainDataset(transform=transform_aug, datapath=datapath,
+    #                                 path_len=path_len, seq_len=seq_len)
 
-    trainLoader = DataLoader(trainDataset + trainDataset_aug,
+    trainLoader = DataLoader(trainDataset,
                              batch_size=32, shuffle=True, drop_last=False)
 
     # 原图
-    testDataset = TestDataset(transform=transform, datapath=datapath, pic_path="whole_path",
+    testDataset = TestDataset(transform=transform, datapath=datapath,
                               path_len=path_len, seq_len=seq_len)
 
     testLoader = DataLoader(testDataset,
@@ -184,16 +194,16 @@ if __name__ == '__main__':
 
     print('############################### Model loading ###############################')
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '1'
     device = torch.device('cuda')
 
     # 1加载模型结构
     # 2加载模型权重
-    # model = Conformer(num_classes=seq_len,
-    #                   input_dim=3 * 160 * 90,
-    #                   encoder_dim=32,
-    #                   num_encoder_layers=3)
-    model = torch.load(check_point_dir + "/model.pt")
+    model = Conformer(num_classes=seq_len,
+                      input_dim=3 * 160 * 90,
+                      encoder_dim=32,
+                      num_encoder_layers=3)
+    # model = torch.load(check_point_dir + "/model.pt")
 
     # 3设置运行环境
     model = model.to(device)

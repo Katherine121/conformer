@@ -8,17 +8,18 @@ import torchvision.datasets
 from torchvision import transforms
 from torch.utils.data import DataLoader
 import numpy as np
-from torchvision.transforms import autoaugment
 
 from conformer import Conformer
-from process_dis.dis_dataloader import TrainDataset, TestDataset
-# from process_dis2.dis_dataloader import TrainDataset, TestDataset
+# from process_dis.dis_dataloader import TrainDataset, TestDataset
+from process_dis2.dis_dataloader import TrainDataset, TestDataset
 
 
 def check_accuracy(loader, model, device=None):
     model.eval()
     total_diff = 0
     total_samples = 0
+    end_diff = 0
+    end_samples = 0
 
     with torch.no_grad():
         t = 0
@@ -34,39 +35,43 @@ def check_accuracy(loader, model, device=None):
             outputs = outputs.to(dtype=torch.float64)
 
             b, seq_len, _ = x.size()
-            for i in range(0, seq_len):
+
+            y[:, 0, :] += pos[:, 0, :]
+            outputs[:, 0, :] += pos[:, 0, :]
+            for i in range(1, seq_len):
                 # 理论起点+理论位移=理论下一个位置
-                y[:, i, :] = pos[:, i, :] + y[:, i, :]
+                y[:, i, :] += y[:, i - 1, :]
                 # 理论起点+输出位移=输出下一个位置
-                outputs[:, i, :] = pos[:, i, :] + outputs[:, i, :]
+                outputs[:, i, :] += outputs[:, i - 1, :]
 
             # 理论下一个位置的经纬度
-            lat = y / 100000
-            # lat = y / 10000
+            # lat = y / 100000
+            lat = y / 10000
 
             # 输出与理论下一个位置的经纬度误差
             diff = torch.abs(outputs - y)
 
             # 输出与理论下一个位置的纬度误差的米
-            diff *= 1.11
-            # diff *= 11.1
+            # diff *= 1.11
+            diff *= 11.1
             # 输出与理论下一个位置的经度误差的米
             diff[:, :, 1] *= torch.cos(lat[:, :, 0] * math.pi / 180)
 
             # 误差总和
-            diff = diff.sum()
-            total_diff += diff
+            total_diff += diff.sum()
             total_samples += b * seq_len * 2
+
+            end_diff += diff[:, -1, :].sum()
+            end_samples += b * 2
 
             if t % 10 == 0:
                 print(t)
             t += 1
 
-        diff = float(total_diff) / total_samples
+        diff1 = float(total_diff) / total_samples
+        diff2 = float(end_diff) / end_samples
 
-    print(diff)
-
-    return diff
+    return diff1, diff2
 
 
 if __name__ == '__main__':
@@ -75,8 +80,8 @@ if __name__ == '__main__':
     # 记得修改check_accuracy / 100000
     path_len = 15
     seq_len = 10
-    datapath = "process_dis"
-    check_point_dir = "saved_model"
+    datapath = "process_dis2"
+    check_point_dir = "saved_model2"
 
     transform = transforms.Compose([
         transforms.Resize((160, 90)),
@@ -84,7 +89,7 @@ if __name__ == '__main__':
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
     # 原图
-    testDataset = TestDataset(transform=transform, datapath=datapath, pic_path="whole_path",
+    testDataset = TestDataset(transform=transform, datapath=datapath,
                               path_len=path_len, seq_len=seq_len)
 
     testLoader = DataLoader(testDataset,
@@ -94,7 +99,7 @@ if __name__ == '__main__':
 
     print('############################### Model loading ###############################')
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '1'
     device = torch.device('cuda')
 
     # 1加载模型结构
