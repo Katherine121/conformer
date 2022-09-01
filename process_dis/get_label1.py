@@ -104,8 +104,8 @@ def gene_path(pics_list, labels, path_len, flag):
                     break
                 if abs(labels[j][2] - last_pos[2]) > 50e-5:
                     continue
-                # if abs(labels[j][1] - last_pos[1]) > 3:
-                #     continue
+                if abs(labels[j][1] - last_pos[1]) > 3:
+                    continue
 
                 item.append(pics_list[j])
                 lab.append(labels[j])
@@ -126,8 +126,8 @@ def gene_path(pics_list, labels, path_len, flag):
                     break
                 if abs(labels[j][0] - last_pos[0]) > 50e-5:
                     continue
-                # if abs(labels[j][1] - last_pos[1]) > 3:
-                #     continue
+                if abs(labels[j][1] - last_pos[1]) > 3:
+                    continue
 
                 item.append(pics_list[j])
                 lab.append(labels[j])

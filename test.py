@@ -1,17 +1,11 @@
 import math
 import os
-import time
 
 import torch
-import torch.nn as nn
-import torchvision.datasets
 from torchvision import transforms
 from torch.utils.data import DataLoader
-import numpy as np
 
-from conformer import Conformer
-# from process_dis.dis_dataloader import TrainDataset, TestDataset
-from process_dis2.dis_dataloader import TrainDataset, TestDataset
+from process_dis.dis_dataloader import TestDataset
 
 
 def check_accuracy(loader, model, device=None):
@@ -45,14 +39,12 @@ def check_accuracy(loader, model, device=None):
                 outputs[:, i, :] += outputs[:, i - 1, :]
 
             # 理论下一个位置的经纬度
-            # lat = y / 100000
             lat = y / 10000
 
             # 输出与理论下一个位置的经纬度误差
             diff = torch.abs(outputs - y)
 
             # 输出与理论下一个位置的纬度误差的米
-            # diff *= 1.11
             diff *= 11.1
             # 输出与理论下一个位置的经度误差的米
             diff[:, :, 1] *= torch.cos(lat[:, :, 0] * math.pi / 180)
@@ -64,8 +56,10 @@ def check_accuracy(loader, model, device=None):
             end_diff += diff[:, -1, :].sum()
             end_samples += b * 2
 
-            if t % 10 == 0:
-                print(t)
+            # 每800个iteration打印一次测试集准确率
+            if t > 0 and t % 800 == 0:
+                print('下一个位置的经纬度的米的误差' + str(diff.sum() / b / seq_len / 2))
+                print('终点的经纬度的米的误差' + str(diff[:, -1, :].sum() / b / 2))
             t += 1
 
         diff1 = float(total_diff) / total_samples
@@ -80,8 +74,8 @@ if __name__ == '__main__':
     # 记得修改check_accuracy / 100000
     path_len = 15
     seq_len = 10
-    datapath = "process_dis2"
-    check_point_dir = "saved_model2"
+    datapath = "process_dis"
+    check_point_dir = "saved_model"
 
     transform = transforms.Compose([
         transforms.Resize((160, 90)),
