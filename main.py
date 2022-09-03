@@ -1,15 +1,16 @@
 import math
 import os
+import numpy as np
 
 import torch
 import torch.nn as nn
-from torchvision import transforms
 from torch.utils.data import DataLoader
-import numpy as np
+from torchvision import transforms
 
-import autoaugment
 from conformer import Conformer
+
 from process_dis.dis_dataloader import TrainDataset, TestDataset
+import autoaugment
 
 
 def check_accuracy(loader, model, device=None):
@@ -86,7 +87,7 @@ def train(
     diff1 = 0
     diff2 = 0
     losses = []
-    best_diff = math.inf
+    best_diff = 19.118844223003705
 
     for e in range(epochs):
         model.train()
@@ -159,26 +160,17 @@ if __name__ == '__main__':
     path_len = 15
     seq_len = 10
     datapath = "process_dis"
-    check_point_dir = "saved_model2"
+    check_point_dir = "saved_model"
 
     transform = transforms.Compose([
-        transforms.Resize((160, 90)),
+        transforms.Resize((90, 160)),
         transforms.ToTensor(),
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
-    # transform_aug = transforms.Compose([
-    #     transforms.Resize((160, 90)),
-    #     autoaugment.CIFAR10Policy(),
-    #     transforms.ToTensor(),
-    #     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-    # ])
 
     # 原图
     trainDataset = TrainDataset(transform=transform, datapath=datapath,
                                 path_len=path_len, seq_len=seq_len)
-    # # 数据增强
-    # trainDataset_aug = TrainDataset(transform=transform_aug, datapath=datapath,
-    #                                 path_len=path_len, seq_len=seq_len)
 
     trainLoader = DataLoader(trainDataset,
                              batch_size=32, shuffle=True, drop_last=False)
@@ -194,16 +186,16 @@ if __name__ == '__main__':
 
     print('############################### Model loading ###############################')
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
     device = torch.device('cuda')
 
     # 1加载模型结构
     # 2加载模型权重
-    model = Conformer(num_classes=seq_len,
-                      input_dim=3 * 160 * 90,
-                      encoder_dim=32,
-                      num_encoder_layers=3)
-    # model = torch.load(check_point_dir + "/model.pt")
+    # model = Conformer(num_classes=seq_len,
+    #                   input_dim=3 * 160 * 90,
+    #                   encoder_dim=32,
+    #                   num_encoder_layers=3)
+    model = torch.load(check_point_dir + "/model.pt")
 
     # 3设置运行环境
     model = model.to(device)

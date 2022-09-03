@@ -55,7 +55,7 @@ class ConformerBlock(nn.Module):
     """
     def __init__(
             self,
-            encoder_dim: int = 512,
+            encoder_dim: int = 32,
             num_attention_heads: int = 8,
             feed_forward_expansion_factor: int = 4,
             conv_expansion_factor: int = 2,
@@ -138,9 +138,9 @@ class ConformerEncoder(nn.Module):
     """
     def __init__(
             self,
-            input_dim: int = 80,
-            encoder_dim: int = 512,
-            num_layers: int = 17,
+            input_dim: int = 3*90*160,
+            encoder_dim: int = 32,
+            num_layers: int = 3,
             num_attention_heads: int = 8,
             feed_forward_expansion_factor: int = 4,
             conv_expansion_factor: int = 2,

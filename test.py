@@ -56,15 +56,15 @@ def check_accuracy(loader, model, device=None):
             end_diff += diff[:, -1, :].sum()
             end_samples += b * 2
 
-            # 每800个iteration打印一次测试集准确率
-            if t > 0 and t % 800 == 0:
-                print('下一个位置的经纬度的米的误差' + str(diff.sum() / b / seq_len / 2))
-                print('终点的经纬度的米的误差' + str(diff[:, -1, :].sum() / b / 2))
             t += 1
+            if t % 20 == 0:
+                print(t)
 
         diff1 = float(total_diff) / total_samples
         diff2 = float(end_diff) / end_samples
 
+        print(diff1)
+        print(diff2)
     return diff1, diff2
 
 
@@ -78,7 +78,7 @@ if __name__ == '__main__':
     check_point_dir = "saved_model"
 
     transform = transforms.Compose([
-        transforms.Resize((160, 90)),
+        transforms.Resize((90, 160)),
         transforms.ToTensor(),
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
@@ -93,7 +93,7 @@ if __name__ == '__main__':
 
     print('############################### Model loading ###############################')
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
     device = torch.device('cuda')
 
     # 1加载模型结构

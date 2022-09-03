@@ -39,7 +39,7 @@ class FeedForwardModule(nn.Module):
     """
     def __init__(
             self,
-            encoder_dim: int = 512,
+            encoder_dim: int = 32,
             expansion_factor: int = 4,
             dropout_p: float = 0.3,
     ) -> None:

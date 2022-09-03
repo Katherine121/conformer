@@ -22,24 +22,24 @@ class ShearY(object):
             Image.BICUBIC, fillcolor=self.fillcolor)
 
 
-class TranslateX(object):
-    def __init__(self, fillcolor=(128, 128, 128)):
-        self.fillcolor = fillcolor
-
-    def __call__(self, x, magnitude):
-        return x.transform(
-            x.size, Image.AFFINE, (1, 0, magnitude * x.size[0] * random.choice([-1, 1]), 0, 1, 0),
-            fillcolor=self.fillcolor)
-
-
-class TranslateY(object):
-    def __init__(self, fillcolor=(128, 128, 128)):
-        self.fillcolor = fillcolor
-
-    def __call__(self, x, magnitude):
-        return x.transform(
-            x.size, Image.AFFINE, (1, 0, 0, 0, 1, magnitude * x.size[1] * random.choice([-1, 1])),
-            fillcolor=self.fillcolor)
+# class TranslateX(object):
+#     def __init__(self, fillcolor=(128, 128, 128)):
+#         self.fillcolor = fillcolor
+#
+#     def __call__(self, x, magnitude):
+#         return x.transform(
+#             x.size, Image.AFFINE, (1, 0, magnitude * x.size[0] * random.choice([-1, 1]), 0, 1, 0),
+#             fillcolor=self.fillcolor)
+#
+#
+# class TranslateY(object):
+#     def __init__(self, fillcolor=(128, 128, 128)):
+#         self.fillcolor = fillcolor
+#
+#     def __call__(self, x, magnitude):
+#         return x.transform(
+#             x.size, Image.AFFINE, (1, 0, 0, 0, 1, magnitude * x.size[1] * random.choice([-1, 1])),
+#             fillcolor=self.fillcolor)
 
 
 class Rotate(object):
