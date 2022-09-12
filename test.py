@@ -1,93 +1,104 @@
 import math
 import os
+import numpy as np
 
 import torch
-from torchvision import transforms
+import torch.nn as nn
 from torch.utils.data import DataLoader
+from torchvision import transforms
 
-from process_dis.dis_dataloader import TestDataset
+from conformer import Conformer
+from conformer.classify_model import ClassifyConformer
+
+from cluster.class_dataloader import TrainDataset, TestDataset, get_center
+import autoaugment
+from thop import profile
 
 
-def check_accuracy(loader, model, device=None):
+def compute_diff(pos_outputs, pos):
+    diff = torch.abs(pos_outputs - pos)
+    # 纬度差111km
+    diff *= 111000
+    # 经度差111km*cos纬度
+    diff[:, 1] *= torch.cos(pos[:, 0] * math.pi / 180)
+
+    diff *= diff
+
+    diff = torch.sum(diff, dim=-1)
+
+    diff = torch.sqrt(diff)
+
+    diff = torch.sum(diff, dim=-1)
+
+    return diff
+
+
+def check_accuracy(loader, model, device=None, centers=None):
     model.eval()
-    total_diff = 0
+    total_correct = 0
     total_samples = 0
-    end_diff = 0
-    end_samples = 0
+    total_diff = 0
 
     with torch.no_grad():
         t = 0
         for x, y, pos in loader:
             x = x.to(device, dtype=torch.float32)
-            # 理论位移
-            y = y.to(device, dtype=torch.float64)
-            # 理论起点
+            y = y.to(device, dtype=torch.long)
             pos = pos.to(device, dtype=torch.float64)
 
-            # 输出位移
             outputs = model(x)
-            outputs = outputs.to(dtype=torch.float64)
 
-            b, seq_len, _ = x.size()
+            # _,是batch_size*概率，preds是batch_size*最大概率的列号
+            _, preds = outputs.max(1)
 
-            y[:, 0, :] += pos[:, 0, :]
-            outputs[:, 0, :] += pos[:, 0, :]
-            for i in range(1, seq_len):
-                # 理论起点+理论位移=理论下一个位置
-                y[:, i, :] += y[:, i - 1, :]
-                # 理论起点+输出位移=输出下一个位置
-                outputs[:, i, :] += outputs[:, i - 1, :]
+            num_correct = (preds == y).sum()
+            num_samples = preds.size(0)
 
-            # 理论下一个位置的经纬度
-            lat = y / 10000
+            total_correct += num_correct
+            total_samples += num_samples
 
-            # 输出与理论下一个位置的经纬度误差
-            diff = torch.abs(outputs - y)
+            # 获得当前batch所有图像对应类别的中心坐标
+            pos_outputs = centers[preds].to(device)
+            # 计算中心坐标（预测）与真实坐标（标签）的误差
+            pos_diff = compute_diff(pos_outputs, pos)
 
-            # 输出与理论下一个位置的纬度误差的米
-            diff *= 11.1
-            # 输出与理论下一个位置的经度误差的米
-            diff[:, :, 1] *= torch.cos(lat[:, :, 0] * math.pi / 180)
+            total_diff += pos_diff
 
-            # 误差总和
-            total_diff += diff.sum()
-            total_samples += b * seq_len * 2
+            # 每100个iteration打印一次测试集准确率
+            if t > 0 and t % 100 == 0:
+                print('预测正确的图片数目' + str(num_correct))
+                print('总共的图片数目' + str(num_samples))
+                print('预测坐标与真实坐标的平均欧式距离' + str(pos_diff / num_samples))
 
-            end_diff += diff[:, -1, :].sum()
-            end_samples += b * 2
-
-            t += 1
             if t % 20 == 0:
                 print(t)
+            t += 1
 
-        diff1 = float(total_diff) / total_samples
-        diff2 = float(end_diff) / end_samples
-
-        print(diff1)
-        print(diff2)
-    return diff1, diff2
+        acc = float(total_correct) / total_samples
+        diff = float(total_diff) / total_samples
+    return acc, diff
 
 
 if __name__ == '__main__':
     print('############################### Dataset loading ###############################')
 
-    # 记得修改check_accuracy / 100000
-    path_len = 15
-    seq_len = 10
-    datapath = "process_dis"
-    check_point_dir = "saved_model"
+    datapath = "cluster"
+    check_point_dir = "saved_model3"
+    class_num = 100
+    max_num = 300
+    centers = get_center(path=datapath)
 
     transform = transforms.Compose([
         transforms.Resize((90, 160)),
         transforms.ToTensor(),
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
+
     # 原图
-    testDataset = TestDataset(transform=transform, datapath=datapath,
-                              path_len=path_len, seq_len=seq_len)
+    testDataset = TestDataset(transform=transform, datapath=datapath, class_num=class_num)
 
     testLoader = DataLoader(testDataset,
-                            batch_size=16, shuffle=True, drop_last=False)
+                            batch_size=32, shuffle=True, drop_last=False)
 
     print('###############################  Dataset loaded  ##############################')
 
@@ -96,8 +107,8 @@ if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = '0'
     device = torch.device('cuda')
 
-    # 1加载模型结构
-    # 2加载模型权重
+    # 1加载预训练序列模型结构
+    # 2加载预训练序列模型权重
     model = torch.load(check_point_dir + "/model.pt")
 
     # 3设置运行环境
@@ -105,4 +116,6 @@ if __name__ == '__main__':
 
     print('###############################  Model loaded  ##############################')
 
-    diff = check_accuracy(testLoader, model, device)
+    acc, diff = check_accuracy(testLoader, model, device, centers)
+    print(acc)
+    print(diff)
