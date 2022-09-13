@@ -123,9 +123,9 @@ class ClassifyConformer(nn.Module):
         """
         b, c, h, w = inputs.size()
 
-        # b,3,160,90->b,30,160,90
+        # b,3,90,160->b,30,90,160
         inputs = self.conv(inputs)
-        # b,30,160,90->b,10,3*160*90
+        # b,30,90,160->b,10,3*90*160
         inputs = inputs.view(b, 10, -1)
 
         encoder_outputs = self.encoder(inputs).squeeze(dim=1)

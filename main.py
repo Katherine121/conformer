@@ -192,7 +192,7 @@ if __name__ == '__main__':
     # 1加载模型结构
     # 2加载模型权重
     # model = Conformer(num_classes=seq_len,
-    #                   input_dim=3 * 160 * 90,
+    #                   input_dim=3 * 90 * 160,
     #                   encoder_dim=32,
     #                   num_encoder_layers=3)
     model = torch.load(check_point_dir + "/model.pt")
