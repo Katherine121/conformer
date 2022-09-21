@@ -8,9 +8,29 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from conformer import Conformer
-
 from process_dis.dis_dataloader import TrainDataset, TestDataset
-import autoaugment
+from utils.transformer_opt import ScheduledOptimizer
+
+
+def compute_diff(lat, outputs, y):
+    # 输出与理论下一个位置的经纬度误差
+    diff = torch.abs(outputs - y)
+
+    # 输出与理论下一个位置的纬度误差的米
+    diff *= 11.1
+    # 输出与理论下一个位置的经度误差的米
+    diff[:, :, 1] *= torch.cos(lat[:, :, 0] * math.pi / 180)
+
+    diff *= diff
+
+    diff = torch.sum(diff, dim=-1)
+
+    diff = torch.sqrt(diff)
+
+    diff_avg = diff.sum()
+    diff_end = diff[:, -1].sum()
+
+    return diff_avg, diff_end
 
 
 def check_accuracy(loader, model, device=None):
@@ -46,25 +66,17 @@ def check_accuracy(loader, model, device=None):
             # 理论下一个位置的经纬度
             lat = y / 10000
 
-            # 输出与理论下一个位置的经纬度误差
-            diff = torch.abs(outputs - y)
+            diff_1batch, diff_end = compute_diff(lat, outputs, y)
 
-            # 输出与理论下一个位置的纬度误差的米
-            diff *= 11.1
-            # 输出与理论下一个位置的经度误差的米
-            diff[:, :, 1] *= torch.cos(lat[:, :, 0] * math.pi / 180)
-
-            # 误差总和
-            total_diff += diff.sum()
-            total_samples += b * seq_len * 2
-
-            end_diff += diff[:, -1, :].sum()
-            end_samples += b * 2
+            total_diff += diff_1batch
+            total_samples += b * seq_len
+            end_diff += diff_end
+            end_samples += b
 
             # 每800个iteration打印一次测试集准确率
             if t > 0 and t % 800 == 0:
-                print('下一个位置的经纬度的米的误差' + str(diff.sum() / b / seq_len / 2))
-                print('终点的经纬度的米的误差' + str(diff[:, -1, :].sum() / b / 2))
+                print('下一个位置的经纬度的米的误差' + str(diff_1batch / b / seq_len))
+                print('终点的经纬度的米的误差' + str(diff_end / b))
             t += 1
 
         diff1 = float(total_diff) / total_samples
@@ -86,8 +98,7 @@ def train(
 ):
     diff1 = 0
     diff2 = 0
-    losses = []
-    best_diff = 19.118844223003705
+    best_diff = math.inf
 
     for e in range(epochs):
         model.train()
@@ -109,7 +120,7 @@ def train(
             # 3
             loss.backward()
             # 4
-            optimizer.step()
+            optimizer.step_and_update_lr()
 
             if scheduler is not None:
                 scheduler.step()
@@ -119,7 +130,6 @@ def train(
                 print("Iteration:" + str(t) + ', average Loss = ' + str(loss_value))
 
         total_loss /= t
-        losses.append(total_loss)
 
         diff1, diff2 = check_accuracy(loader_val, model, device=device)
 
@@ -191,24 +201,25 @@ if __name__ == '__main__':
 
     # 1加载模型结构
     # 2加载模型权重
-    # model = Conformer(num_classes=seq_len,
-    #                   input_dim=3 * 90 * 160,
-    #                   encoder_dim=32,
-    #                   num_encoder_layers=3)
-    model = torch.load(check_point_dir + "/model.pt")
+    model = Conformer(num_classes=seq_len,
+                      input_dim=3 * 90 * 160,
+                      encoder_dim=32,
+                      num_encoder_layers=3)
+    # model = torch.load(check_point_dir + "/model.pt")
 
     # 3设置运行环境
     model = model.to(device)
 
     print('###############################  Model loaded  ##############################')
 
-    lr = 0.0001
-    wd = 0.3
     epochs = 300
-    save_epochs = 3
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=wd)
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=3, T_mult=2)
+    # a l2 regularization with 1e-6 weight is also added to all the trainable weights in the network.
+    # We train the models with the Adam optimizer[31] with β1 = 0.9, β2 = 0.98 and epoxilo = 10-9
+    # and a transformer learning rate schedule[6], with 10k warm-up steps
+    # and peak learning rate 0.05 / √ d where d is the model dimension in conformer encoder
+    optimizer = ScheduledOptimizer(torch.optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9, weight_decay=1e-6),
+                                   lr_mul=2, d_model=512, n_warmup_steps=10000)
 
     args = {
         'loader_train': trainLoader,
@@ -216,10 +227,10 @@ if __name__ == '__main__':
         'device': device,
         'model': model,
         'criterion': nn.MSELoss(),
-        'scheduler': lr_scheduler,
+        'scheduler': None,
         'optimizer': optimizer,
         'epochs': epochs,
         'check_point_dir': check_point_dir
     }
     train(**args)
-    # diff = check_accuracy(testLoader, model, device)
+    # diff1, diff2 = check_accuracy(testLoader, model, device)

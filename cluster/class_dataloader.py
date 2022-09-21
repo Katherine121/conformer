@@ -29,8 +29,8 @@ def get_center(path="cluster"):
     return center
 
 
-def get_train_data(datapath="cluster", max_num=300):
-    # 最大数目100，最小数目2
+def get_train_data(datapath="cluster", max_num=400):
+    # 最大数目1023*0.8，最小数目42*0.8
     all_pics = []
     f = open(os.path.join(datapath, "cluster_pics.txt"), 'rt')
     for line in f:
@@ -73,7 +73,7 @@ def get_train_data(datapath="cluster", max_num=300):
 
 
 def get_test_data(datapath="cluster"):
-    # 最大数目100，最小数目2
+    # 最大数目1023*0.2，最小数目42*0.2
     all_pics = []
     f = open(os.path.join(datapath, "cluster_pics.txt"), 'rt')
     for line in f:
@@ -108,7 +108,7 @@ def get_test_data(datapath="cluster"):
 
 
 class TrainDataset(Dataset):
-    def __init__(self, transform, datapath="cluster", class_num=100, max_num=300):
+    def __init__(self, transform, datapath="cluster", class_num=100, max_num=400):
         self.transform = transform
         res = []
         all_pics, all_labels = get_train_data(datapath, max_num)
@@ -171,7 +171,8 @@ if __name__ == "__main__":
         transforms.ToTensor(),
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
-    trainDataset = TrainDataset(transform=transform, datapath=".", class_num=100)
+    trainDataset = TrainDataset(transform=transform, datapath=".", class_num=150, max_num=400)
+    testDataset = TestDataset(transform=transform, datapath=".", class_num=150)
 
     # f = open("cluster_pics.txt", 'rt')
     # for line in f:

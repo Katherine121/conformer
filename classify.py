@@ -7,11 +7,10 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from conformer import Conformer
-from conformer.classify_model import ClassifyConformer
-
 from cluster.class_dataloader import TrainDataset, TestDataset, get_center
-import autoaugment
+from conformer.classify_model import ClassifyConformer
+from utils import autoaugment
+
 from thop import profile
 
 
@@ -91,7 +90,7 @@ def train(
 ):
     acc = 0
     diff = 0
-    best_acc = 0.7956165120344225
+    best_acc = 0
 
     for e in range(epochs):
         model.train()
@@ -160,7 +159,7 @@ if __name__ == '__main__':
     print('############################### Dataset loading ###############################')
 
     datapath = "cluster"
-    check_point_dir = "saved_model3"
+    check_point_dir = "saved_model2"
     class_num = 100
     max_num = 300
     centers = get_center(path=datapath)
@@ -212,40 +211,32 @@ if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = '0'
     device = torch.device('cuda')
 
-    # # 1加载预训练序列模型结构
-    # # 2加载预训练序列模型权重
-    # seq_model = torch.load("saved_model/model.pt")
-    # # 加载分类模型
-    # model = ClassifyConformer(num_classes=class_num,
-    #                           input_dim=3 * 90 * 160,
-    #                           encoder_dim=32,
-    #                           num_encoder_layers=3)
-    #
-    # # 读取预训练序列模型参数
-    # pretrained_dict = seq_model.state_dict()
-    # print(len(pretrained_dict))
-    # # 读取分类模型参数
-    # net_dict = model.state_dict()
-    # print(len(net_dict))
-    #
-    # # 将pretrained_dict里不属于net_dict的键剔除掉
-    # pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in net_dict}
-    # # 更新修改之后的net_dict
-    # net_dict.update(pretrained_dict)
-    # print(len(pretrained_dict))
-    # # 加载我们真正需要的state_dict
-    # model.load_state_dict(net_dict)
+    # 1加载预训练序列模型结构
+    # 2加载预训练序列模型权重
+    seq_model = torch.load("saved_model/model.pt")
+    # 加载分类模型
+    model = ClassifyConformer(num_classes=class_num,
+                              input_dim=3 * 90 * 160,
+                              encoder_dim=32,
+                              num_encoder_layers=3)
 
-    model = torch.load(check_point_dir + "/model.pt")
+    # 读取预训练序列模型参数
+    pretrained_dict = seq_model.state_dict()
+    print(len(pretrained_dict))
+    # 读取分类模型参数
+    net_dict = model.state_dict()
+    print(len(net_dict))
+
+    # 将pretrained_dict里不属于net_dict的键剔除掉
+    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in net_dict}
+    # 更新修改之后的net_dict
+    net_dict.update(pretrained_dict)
+    print(len(pretrained_dict))
+    # 加载我们真正需要的state_dict
+    model.load_state_dict(net_dict)
 
     # 3设置运行环境
     model = model.to(device)
-
-    x = torch.randn((1, 3, 90, 160)).to(device)
-    # 第一种方法
-    flops, params = profile(model, (x,))
-    print('flops: ', flops, 'params: ', params)
-    print('flops: %.2f M, params: %.2f M' % (flops / 1000000.0, params / 1000000.0))
 
     print('###############################  Model loaded  ##############################')
 
@@ -270,4 +261,4 @@ if __name__ == '__main__':
         'check_point_dir': check_point_dir
     }
     train(**args)
-    # diff = check_accuracy(testLoader, model, device, centers)
+    # acc, diff = check_accuracy(testLoader, model, device, centers)

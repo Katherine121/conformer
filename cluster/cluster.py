@@ -61,7 +61,7 @@ def euclidean_distance(pos1, pos2):
     return math.sqrt(((pos1[0] - pos2[0]) ** 2 + (pos1[1] - pos2[1]) ** 2))
 
 
-def images_clustering(path, k=100, epoch=50):
+def images_clustering(path, k=150, epoch=200):
 
     pics_list, labels = get_pics(path)
 
@@ -151,5 +151,5 @@ def images_clustering(path, k=100, epoch=50):
 
 
 if __name__ == "__main__":
-    images_clustering(path="../whole_path", k=100, epoch=100)
-    # copy_classes(".")
+    # images_clustering(path="../whole_path", k=150, epoch=200)
+    copy_classes(".")

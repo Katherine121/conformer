@@ -7,86 +7,158 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from conformer import Conformer
-from conformer.classify_model import ClassifyConformer
-
-from cluster.class_dataloader import TrainDataset, TestDataset, get_center
-import autoaugment
-from thop import profile
+from process_dis.dis_dataloader import TrainDataset, TestDataset
+from utils.transformer_opt import ScheduledOptimizer
 
 
-def compute_diff(pos_outputs, pos):
-    diff = torch.abs(pos_outputs - pos)
-    # 纬度差111km
-    diff *= 111000
-    # 经度差111km*cos纬度
-    diff[:, 1] *= torch.cos(pos[:, 0] * math.pi / 180)
-
-    diff *= diff
-
-    diff = torch.sum(diff, dim=-1)
-
-    diff = torch.sqrt(diff)
-
-    diff = torch.sum(diff, dim=-1)
-
-    return diff
-
-
-def check_accuracy(loader, model, device=None, centers=None):
+def check_accuracy(loader, model, device=None):
     model.eval()
-    total_correct = 0
-    total_samples = 0
     total_diff = 0
+    total_samples = 0
+    end_diff = 0
+    end_samples = 0
 
     with torch.no_grad():
         t = 0
         for x, y, pos in loader:
             x = x.to(device, dtype=torch.float32)
-            y = y.to(device, dtype=torch.long)
+            # 理论位移
+            y = y.to(device, dtype=torch.float64)
+            # 理论起点
             pos = pos.to(device, dtype=torch.float64)
+
+            # 输出位移
+            outputs = model(x)
+            outputs = outputs.to(dtype=torch.float64)
+
+            b, seq_len, _ = x.size()
+
+            y[:, 0, :] += pos[:, 0, :]
+            outputs[:, 0, :] += pos[:, 0, :]
+            for i in range(1, seq_len):
+                # 理论起点+理论位移=理论下一个位置
+                y[:, i, :] += y[:, i - 1, :]
+                # 理论起点+输出位移=输出下一个位置
+                outputs[:, i, :] += outputs[:, i - 1, :]
+
+            # 理论下一个位置的经纬度
+            lat = y / 10000
+
+            # 输出与理论下一个位置的经纬度误差
+            diff = torch.abs(outputs - y)
+
+            # 输出与理论下一个位置的纬度误差的米
+            diff *= 11.1
+            # 输出与理论下一个位置的经度误差的米
+            diff[:, :, 1] *= torch.cos(lat[:, :, 0] * math.pi / 180)
+
+            # 误差总和
+            total_diff += diff.sum()
+            total_samples += b * seq_len * 2
+
+            end_diff += diff[:, -1, :].sum()
+            end_samples += b * 2
+
+            # 每800个iteration打印一次测试集准确率
+            if t > 0 and t % 800 == 0:
+                print('下一个位置的经纬度的米的误差' + str(diff.sum() / b / seq_len / 2))
+                print('终点的经纬度的米的误差' + str(diff[:, -1, :].sum() / b / 2))
+            t += 1
+
+        diff1 = float(total_diff) / total_samples
+        diff2 = float(end_diff) / end_samples
+
+    return diff1, diff2
+
+
+def train(
+        loader_train=None,
+        loader_val=None,
+        device=None,
+        model=None,
+        criterion=nn.CrossEntropyLoss(),
+        scheduler=None,
+        optimizer=None,
+        epochs=300,
+        check_point_dir=None
+):
+    diff1 = 0
+    diff2 = 0
+    losses = []
+    best_diff = 19.118844223003705
+
+    for e in range(epochs):
+        model.train()
+        total_loss = 0
+        for t, (x, y, _) in enumerate(loader_train):
+            x = x.to(device=device, dtype=torch.float32)
+            y = y.to(device=device, dtype=torch.float32)
 
             outputs = model(x)
 
-            # _,是batch_size*概率，preds是batch_size*最大概率的列号
-            _, preds = outputs.max(1)
+            # 原y+混y和原t，混t求损失：lam越大，小方块越小，被识别成真图片的概率越大
+            # 2
+            loss = criterion(outputs, y)
+            loss_value = np.array(loss.item())
+            total_loss += loss_value
 
-            num_correct = (preds == y).sum()
-            num_samples = preds.size(0)
+            # 1
+            optimizer.zero_grad()
+            # 3
+            loss.backward()
+            # 4
+            optimizer.step()
 
-            total_correct += num_correct
-            total_samples += num_samples
+            if scheduler is not None:
+                scheduler.step()
 
-            # 获得当前batch所有图像对应类别的中心坐标
-            pos_outputs = centers[preds].to(device)
-            # 计算中心坐标（预测）与真实坐标（标签）的误差
-            pos_diff = compute_diff(pos_outputs, pos)
+            # 800个iteration打印一下训练集损失
+            if t > 0 and t % 800 == 0:
+                print("Iteration:" + str(t) + ', average Loss = ' + str(loss_value))
 
-            total_diff += pos_diff
+        total_loss /= t
+        losses.append(total_loss)
 
-            # 每100个iteration打印一次测试集准确率
-            if t > 0 and t % 100 == 0:
-                print('预测正确的图片数目' + str(num_correct))
-                print('总共的图片数目' + str(num_samples))
-                print('预测坐标与真实坐标的平均欧式距离' + str(pos_diff / num_samples))
+        diff1, diff2 = check_accuracy(loader_val, model, device=device)
 
-            if t % 20 == 0:
-                print(t)
-            t += 1
+        # 每个epoch记录一次测试集准确率和所有batch的平均训练损失
+        print("Epoch:" + str(e) +
+              ', Val diff1 = ' + str(diff1) +
+              ', Val diff2 = ' + str(diff2) +
+              ', average Loss = ' + str(total_loss))
 
-        acc = float(total_correct) / total_samples
-        diff = float(total_diff) / total_samples
-    return acc, diff
+        if os.path.exists(check_point_dir) is False:
+            os.mkdir(check_point_dir)
+
+        # 将每个epoch的平均损失写入文件
+        with open(check_point_dir + "/" + "avgloss.txt", "a") as file1:
+            file1.write(str(total_loss) + '\n')
+        file1.close()
+        # 将每个epoch的测试集准确率写入文件
+        with open(check_point_dir + "/" + "testdiff.txt", "a") as file2:
+            file2.write(str(diff1) + ' ' + str(diff2) + '\n')
+        file2.close()
+
+        # 如果到了保存的epoch或者是训练完成的最后一个epoch
+        if diff2 < best_diff:
+            best_diff = diff2
+            model.eval()
+            # 保存模型参数
+            torch.save(model.state_dict(), check_point_dir + "/" + "model.pth")
+            # 保存模型结构
+            torch.save(model, check_point_dir + "/" + "model.pt")
+
+    return diff1, diff2
 
 
 if __name__ == '__main__':
     print('############################### Dataset loading ###############################')
 
-    datapath = "cluster"
-    check_point_dir = "saved_model3"
-    class_num = 100
-    max_num = 300
-    centers = get_center(path=datapath)
+    # 记得修改check_accuracy / 100000
+    path_len = 15
+    seq_len = 10
+    datapath = "process_dis"
+    check_point_dir = "saved_model"
 
     transform = transforms.Compose([
         transforms.Resize((90, 160)),
@@ -95,10 +167,18 @@ if __name__ == '__main__':
     ])
 
     # 原图
-    testDataset = TestDataset(transform=transform, datapath=datapath, class_num=class_num)
+    trainDataset = TrainDataset(transform=transform, datapath=datapath,
+                                path_len=path_len, seq_len=seq_len)
+
+    trainLoader = DataLoader(trainDataset,
+                             batch_size=32, shuffle=True, drop_last=False)
+
+    # 原图
+    testDataset = TestDataset(transform=transform, datapath=datapath,
+                              path_len=path_len, seq_len=seq_len)
 
     testLoader = DataLoader(testDataset,
-                            batch_size=32, shuffle=True, drop_last=False)
+                            batch_size=16, shuffle=True, drop_last=False)
 
     print('###############################  Dataset loaded  ##############################')
 
@@ -107,8 +187,12 @@ if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = '0'
     device = torch.device('cuda')
 
-    # 1加载预训练序列模型结构
-    # 2加载预训练序列模型权重
+    # 1加载模型结构
+    # 2加载模型权重
+    # model = Conformer(num_classes=seq_len,
+    #                   input_dim=3 * 90 * 160,
+    #                   encoder_dim=32,
+    #                   num_encoder_layers=3)
     model = torch.load(check_point_dir + "/model.pt")
 
     # 3设置运行环境
@@ -116,6 +200,30 @@ if __name__ == '__main__':
 
     print('###############################  Model loaded  ##############################')
 
-    acc, diff = check_accuracy(testLoader, model, device, centers)
-    print(acc)
-    print(diff)
+    lr = 0.0001
+    wd = 0.3
+    epochs = 300
+    save_epochs = 3
+
+    # a l2 regularization with 1e-6 weight is also added to all the trainable weights in the network.
+    # We train the models with the Adam optimizer[31] with β1 = 0.9, β2 = 0.98 and epoxilo = 10-9
+    # and a transformer learning rate schedule[6], with 10k warm-up steps
+    # and peak learning rate 0.05 / √ d where d is the model dimension in conformer encoder
+    optimizer = ScheduledOptimizer(torch.optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9, weight_decay=1e-6),
+                                   lr_mul=2, d_model=512, n_warmup_steps=10000)
+
+    args = {
+        'loader_train': trainLoader,
+        'loader_val': testLoader,
+        'device': device,
+        'model': model,
+        'criterion': nn.MSELoss(),
+        'scheduler': None,
+        'optimizer': optimizer,
+        'epochs': epochs,
+        'check_point_dir': check_point_dir
+    }
+    # train(**args)
+    diff1, diff2 = check_accuracy(testLoader, model, device)
+    print(diff1)
+    print(diff2)
