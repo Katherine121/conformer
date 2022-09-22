@@ -11,8 +11,6 @@ from cluster.class_dataloader import TrainDataset, TestDataset, get_center
 from conformer.classify_model import ClassifyConformer
 from utils import autoaugment
 
-from thop import profile
-
 
 def compute_diff(pos_outputs, pos):
     diff = torch.abs(pos_outputs - pos)
@@ -160,8 +158,8 @@ if __name__ == '__main__':
 
     datapath = "cluster"
     check_point_dir = "saved_model2"
-    class_num = 100
-    max_num = 300
+    class_num = 150
+    max_num = 400
     centers = get_center(path=datapath)
 
     transform = transforms.Compose([
@@ -170,8 +168,7 @@ if __name__ == '__main__':
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
     transform_crop = transforms.Compose([
-        transforms.CenterCrop((135, 240)),
-        transforms.RandomCrop((90, 160)),
+        transforms.CenterCrop((90, 160)),
         transforms.ToTensor(),
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
     ])
@@ -216,7 +213,7 @@ if __name__ == '__main__':
     seq_model = torch.load("saved_model/model.pt")
     # 加载分类模型
     model = ClassifyConformer(num_classes=class_num,
-                              input_dim=3 * 90 * 160,
+                              input_dim=3 * 30 * 40,
                               encoder_dim=32,
                               num_encoder_layers=3)
 

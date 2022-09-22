@@ -1,13 +1,10 @@
 import operator
 import os
 import shutil
-import random
-
-import numpy as np
 from PIL import Image
 
 
-def remove_pics(path1, path2):
+def remove_pics(path1="order", path2="whole_path"):
     if os.path.exists(path2) is False:
         os.mkdir(path2)
 
@@ -37,7 +34,7 @@ def remove_pics(path1, path2):
             shutil.copy(full_file_path, path2)
 
 
-def sort_pics(path1, lat_or_lon=0):
+def sort_pics(path1="whole_path", lat_or_lon=0):
     # process pics
     pics_list = []
     labels = []

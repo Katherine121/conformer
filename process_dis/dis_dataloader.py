@@ -1,16 +1,10 @@
-import math
-
-import cv2
 import torch
 from PIL import Image
-from torch import nn
 from torch.utils.data import Dataset, DataLoader
-import os
-
 from torchvision import transforms
 
 
-def get_data(datapath, path_len=15, seq_len=10):
+def get_data(datapath="process_dis", path_len=15, seq_len=10):
     all_path = []
     all_labels = []
     all_pos = []
@@ -53,7 +47,7 @@ def get_data(datapath, path_len=15, seq_len=10):
 
 
 class TrainDataset(Dataset):
-    def __init__(self, transform, datapath, path_len, seq_len):
+    def __init__(self, transform, datapath="process_dis", path_len=15, seq_len=10):
         self.transform = transform
         res = []
         all_path, all_labels, all_pos = get_data(datapath=datapath, path_len=path_len, seq_len=seq_len)
@@ -71,7 +65,7 @@ class TrainDataset(Dataset):
     # 打开index对应图片进行预处理后return回处理后的图片和标签
     def __getitem__(self, index):
         path, label, pos = self.imgs[index]
-        # seq_len, c*h*w
+        # seq_len, c, h, w
         pics = None
         for pic in path:
             # 将../转换成./
@@ -80,9 +74,9 @@ class TrainDataset(Dataset):
             pic = self.transform(pic)
 
             if pics is None:
-                pics = pic.flatten().unsqueeze(dim=0)
+                pics = pic.unsqueeze(dim=0)
             else:
-                pics = torch.cat((pics, pic.flatten().unsqueeze(dim=0)), dim=0)
+                pics = torch.cat((pics, pic.unsqueeze(dim=0)), dim=0)
 
         # seq_len, 2
         label = torch.tensor(label, dtype=torch.float64)
@@ -92,7 +86,7 @@ class TrainDataset(Dataset):
 
 
 class TestDataset(Dataset):
-    def __init__(self, transform, datapath, path_len, seq_len):
+    def __init__(self, transform, datapath="process_dis", path_len=15, seq_len=10):
         self.transform = transform
         res = []
         all_path, all_labels, all_pos = get_data(datapath=datapath, path_len=path_len, seq_len=seq_len)
@@ -110,7 +104,7 @@ class TestDataset(Dataset):
     # 打开index对应图片进行预处理后return回处理后的图片和标签
     def __getitem__(self, index):
         path, label, pos = self.imgs[index]
-        # seq_len, c*h*w
+        # seq_len, c, h, w
         pics = None
         for pic in path:
             # 将../转换成./
@@ -119,9 +113,9 @@ class TestDataset(Dataset):
             pic = self.transform(pic)
 
             if pics is None:
-                pics = pic.flatten().unsqueeze(dim=0)
+                pics = pic.unsqueeze(dim=0)
             else:
-                pics = torch.cat((pics, pic.flatten().unsqueeze(dim=0)), dim=0)
+                pics = torch.cat((pics, pic.unsqueeze(dim=0)), dim=0)
 
         # seq_len, 2
         label = torch.tensor(label, dtype=torch.float64)
@@ -137,11 +131,8 @@ if __name__ == "__main__":
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
 
-    # 1：31143+25598+9981 *0.8
-    trainDataset = TrainDataset(transform=transform, datapath=".",
-                                path_len=15, seq_len=10)
-    trainLoader = DataLoader(trainDataset,
-                             batch_size=32, shuffle=False, drop_last=False)
-    # 1：31143+25598+9981 *0.2
-    testDataset = TestDataset(transform=transform, datapath=".",
-                              path_len=15, seq_len=10)
+    # 1：31143+25598+9981 *2*0.8
+    trainDataset = TrainDataset(transform=transform, datapath=".", path_len=15, seq_len=10)
+    trainLoader = DataLoader(trainDataset, batch_size=32, shuffle=False, drop_last=False)
+    # 1：31143+25598+9981 *2*0.2
+    testDataset = TestDataset(transform=transform, datapath=".", path_len=15, seq_len=10)

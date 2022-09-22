@@ -1,12 +1,8 @@
-import shutil
-
 import torch
-from PIL import Image
-from torch import nn
 from torch.utils.data import Dataset
-import os
-
 from torchvision import transforms
+from PIL import Image
+import os
 
 torch.set_printoptions(profile="full")
 torch.set_printoptions(precision=15)
@@ -108,7 +104,7 @@ def get_test_data(datapath="cluster"):
 
 
 class TrainDataset(Dataset):
-    def __init__(self, transform, datapath="cluster", class_num=100, max_num=400):
+    def __init__(self, transform, datapath="cluster", class_num=150, max_num=400):
         self.transform = transform
         res = []
         all_pics, all_labels = get_train_data(datapath, max_num)
@@ -137,7 +133,7 @@ class TrainDataset(Dataset):
 
 
 class TestDataset(Dataset):
-    def __init__(self, transform, datapath="cluster", class_num=100):
+    def __init__(self, transform, datapath="cluster", class_num=150):
         self.transform = transform
         res = []
         all_pics, all_labels = get_test_data(datapath)

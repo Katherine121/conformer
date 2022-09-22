@@ -1,5 +1,5 @@
 import numpy as np
-from ops import *
+from utils.ops import *
 
 
 class CIFAR10Policy(object):

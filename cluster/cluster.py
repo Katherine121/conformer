@@ -1,8 +1,6 @@
-import decimal
 import math
 import random
 import shutil
-
 import numpy as np
 import os
 
@@ -27,7 +25,7 @@ def copy_classes(datapath="cluster"):
     f.close()
 
 
-def get_pics(path):
+def get_pics(path="whole_path"):
     # process pics
     pics_list = []
     labels = []
@@ -61,7 +59,7 @@ def euclidean_distance(pos1, pos2):
     return math.sqrt(((pos1[0] - pos2[0]) ** 2 + (pos1[1] - pos2[1]) ** 2))
 
 
-def images_clustering(path, k=150, epoch=200):
+def images_clustering(path="whole_path", k=150, epoch=200):
 
     pics_list, labels = get_pics(path)
 

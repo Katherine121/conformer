@@ -1,10 +1,8 @@
 import os
-
 import pandas as pd  # 导入pandas库
 import numpy as np
 from sklearn.cluster import KMeans  # 导入k均值函数
 import matplotlib.pyplot as plt
-import xlrd
 
 
 path = "../whole_path"
@@ -35,7 +33,6 @@ for file in file_path:
 
 featureList = ['0', '1']  # 创建了一个特征列表，这是我原始表格里的特征名
 mdl = pd.DataFrame.from_records(labels, columns=featureList)    # 把labels里的数据放进来，列的名称=featurelist
-
 
 # '利用SSE选择k'
 SSE = []  # 存放每次结果的误差平方和

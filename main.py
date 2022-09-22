@@ -53,7 +53,8 @@ def check_accuracy(loader, model, device=None):
             outputs = model(x)
             outputs = outputs.to(dtype=torch.float64)
 
-            b, seq_len, _ = x.size()
+            b = x.size(0)
+            seq_len = x.size(1)
 
             y[:, 0, :] += pos[:, 0, :]
             outputs[:, 0, :] += pos[:, 0, :]
@@ -202,7 +203,7 @@ if __name__ == '__main__':
     # 1加载模型结构
     # 2加载模型权重
     model = Conformer(num_classes=seq_len,
-                      input_dim=3 * 90 * 160,
+                      input_dim=3 * 30 * 40,
                       encoder_dim=32,
                       num_encoder_layers=3)
     # model = torch.load(check_point_dir + "/model.pt")
@@ -219,7 +220,7 @@ if __name__ == '__main__':
     # and a transformer learning rate schedule[6], with 10k warm-up steps
     # and peak learning rate 0.05 / √ d where d is the model dimension in conformer encoder
     optimizer = ScheduledOptimizer(torch.optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9, weight_decay=1e-6),
-                                   lr_mul=2, d_model=512, n_warmup_steps=10000)
+                                   lr_mul=2, d_model=32, n_warmup_steps=10000)
 
     args = {
         'loader_train': trainLoader,

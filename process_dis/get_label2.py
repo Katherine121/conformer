@@ -1,13 +1,7 @@
-import operator
 import os
-import shutil
-import random
-
-import numpy as np
-from PIL import Image
 
 
-def sort_pics(path):
+def sort_pics(path="order/74551"):
     pics_list = []
     labels = []
 
@@ -35,7 +29,7 @@ def sort_pics(path):
     return pics_list, labels
 
 
-def gene_path(path, path_len):
+def gene_path(path="order", path_len=15):
     all_path = []
     all_label = []
 

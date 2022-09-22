@@ -45,8 +45,8 @@ class RelativeMultiHeadAttention(nn.Module):
     """
     def __init__(
             self,
-            d_model: int = 512,
-            num_heads: int = 16,
+            d_model: int = 32,
+            num_heads: int = 8,
             dropout_p: float = 0.3,
     ):
         super(RelativeMultiHeadAttention, self).__init__()
@@ -147,5 +147,53 @@ class MultiHeadedSelfAttentionModule(nn.Module):
 
         inputs = self.layer_norm(inputs)
         outputs = self.attention(inputs, inputs, inputs, pos_embedding=pos_embedding, mask=mask)
+
+        return self.dropout(outputs)
+
+
+class WTMultiHeadedSelfAttentionModule(nn.Module):
+    """
+    Conformer employ multi-headed self-attention (MHSA) while integrating an important technique from Transformer-XL,
+    the relative sinusoidal positional encoding scheme. The relative positional encoding allows the self-attention
+    module to generalize better on different input length and the resulting encoder is more robust to the variance of
+    the utterance length. Conformer use prenorm residual units with dropout which helps training
+    and regularizing deeper models.
+
+    Args:
+        d_model (int): The dimension of model
+        num_heads (int): The number of attention heads.
+        dropout_p (float): probability of dropout
+
+    Inputs: inputs, mask
+        - **inputs** (batch, time, dim): Tensor containing input vector
+        - **mask** (batch, 1, time2) or (batch, time1, time2): Tensor containing indices to be masked
+
+    Returns:
+        - **outputs** (batch, time, dim): Tensor produces by relative multi headed self attention module.
+    """
+    def __init__(self, d_model: int, num_heads: int, dropout_p: float = 0.3):
+        super(WTMultiHeadedSelfAttentionModule, self).__init__()
+        self.attn_weight = nn.Linear(d_model, d_model)
+        self.conv_weight = nn.Linear(d_model, d_model)
+
+        self.positional_encoding = PositionalEncoding(d_model)
+        self.layer_norm = nn.LayerNorm(d_model)
+        self.attention = RelativeMultiHeadAttention(d_model, num_heads, dropout_p)
+        self.dropout = nn.Dropout(p=dropout_p)
+
+    def forward(self, attn_input: Tensor, conv_input: Tensor, mask: Optional[Tensor] = None):
+        # attn_input b,29,32
+        # conv_input b,29,32
+        # 需要一个权重
+        attn_input = self.attn_weight(attn_input)
+        conv_input = self.conv_weight(conv_input)
+
+        batch_size, seq_length, _ = attn_input.size()
+        pos_embedding = self.positional_encoding(seq_length)
+        pos_embedding = pos_embedding.repeat(batch_size, 1, 1)
+
+        attn_input = self.layer_norm(attn_input)
+        # attn提供Q, conv提供K, V
+        outputs = self.attention(attn_input, conv_input, conv_input, pos_embedding=pos_embedding, mask=mask)
 
         return self.dropout(outputs)

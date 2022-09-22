@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import torch.nn as nn
 from torch import Tensor
-from typing import Tuple
 
 from .activation import Swish, GLU
 from .modules import Transpose
