@@ -9,7 +9,6 @@ from torchvision import transforms
 
 from conformer import Conformer
 from process_dis.dis_dataloader import TrainDataset, TestDataset
-from utils.transformer_opt import ScheduledOptimizer
 
 
 def compute_diff(lat, outputs, y):
@@ -91,7 +90,7 @@ def train(
         loader_val=None,
         device=None,
         model=None,
-        criterion=nn.CrossEntropyLoss(),
+        criterion=nn.MSELoss(),
         scheduler=None,
         optimizer=None,
         epochs=300,
@@ -99,7 +98,8 @@ def train(
 ):
     diff1 = 0
     diff2 = 0
-    best_diff = math.inf
+    best_diff1 = math.inf
+    best_diff2 = math.inf
 
     for e in range(epochs):
         model.train()
@@ -153,13 +153,21 @@ def train(
         file2.close()
 
         # 如果到了保存的epoch或者是训练完成的最后一个epoch
-        if diff2 < best_diff:
-            best_diff = diff2
+        if diff1 < best_diff1:
+            best_diff1 = diff1
             model.eval()
             # 保存模型参数
-            torch.save(model.state_dict(), check_point_dir + "/" + "model.pth")
+            torch.save(model.state_dict(), check_point_dir + "/" + "model_diff1.pth")
             # 保存模型结构
-            torch.save(model, check_point_dir + "/" + "model.pt")
+            torch.save(model, check_point_dir + "/" + "model_diff1.pt")
+
+        if diff2 < best_diff2:
+            best_diff2 = diff2
+            model.eval()
+            # 保存模型参数
+            torch.save(model.state_dict(), check_point_dir + "/" + "model_diff2.pth")
+            # 保存模型结构
+            torch.save(model, check_point_dir + "/" + "model_diff2.pt")
 
     return diff1, diff2
 
@@ -203,7 +211,7 @@ if __name__ == '__main__':
     # 1加载模型结构
     # 2加载模型权重
     model = Conformer(num_classes=seq_len,
-                      input_dim=3 * 30 * 40,
+                      input_dim=3 * 90 * 160,
                       encoder_dim=32,
                       num_encoder_layers=3)
     # model = torch.load(check_point_dir + "/model.pt")
@@ -213,14 +221,13 @@ if __name__ == '__main__':
 
     print('###############################  Model loaded  ##############################')
 
+    lr = 0.0001
+    wd = 0.3
     epochs = 300
+    save_epochs = 3
 
-    # a l2 regularization with 1e-6 weight is also added to all the trainable weights in the network.
-    # We train the models with the Adam optimizer[31] with β1 = 0.9, β2 = 0.98 and epoxilo = 10-9
-    # and a transformer learning rate schedule[6], with 10k warm-up steps
-    # and peak learning rate 0.05 / √ d where d is the model dimension in conformer encoder
-    optimizer = ScheduledOptimizer(torch.optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9, weight_decay=1e-6),
-                                   lr_mul=2, d_model=32, n_warmup_steps=10000)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=wd)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=3, T_mult=2)
 
     args = {
         'loader_train': trainLoader,
@@ -228,7 +235,7 @@ if __name__ == '__main__':
         'device': device,
         'model': model,
         'criterion': nn.MSELoss(),
-        'scheduler': None,
+        'scheduler': lr_scheduler,
         'optimizer': optimizer,
         'epochs': epochs,
         'check_point_dir': check_point_dir

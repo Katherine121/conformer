@@ -74,9 +74,9 @@ class TrainDataset(Dataset):
             pic = self.transform(pic)
 
             if pics is None:
-                pics = pic.unsqueeze(dim=0)
+                pics = pic.flatten().unsqueeze(dim=0)
             else:
-                pics = torch.cat((pics, pic.unsqueeze(dim=0)), dim=0)
+                pics = torch.cat((pics, pic.flatten().unsqueeze(dim=0)), dim=0)
 
         # seq_len, 2
         label = torch.tensor(label, dtype=torch.float64)
@@ -113,9 +113,9 @@ class TestDataset(Dataset):
             pic = self.transform(pic)
 
             if pics is None:
-                pics = pic.unsqueeze(dim=0)
+                pics = pic.flatten().unsqueeze(dim=0)
             else:
-                pics = torch.cat((pics, pic.unsqueeze(dim=0)), dim=0)
+                pics = torch.cat((pics, pic.flatten().unsqueeze(dim=0)), dim=0)
 
         # seq_len, 2
         label = torch.tensor(label, dtype=torch.float64)

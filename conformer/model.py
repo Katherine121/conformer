@@ -50,10 +50,11 @@ class Conformer(nn.Module):
         - **outputs** (batch, out_channels, time): Tensor produces by conformer.
         - **output_lengths** (batch): list of sequence output lengths
     """
+
     def __init__(
             self,
-            num_classes: int,
-            input_dim: int = 3*90*160,
+            num_classes: int = 10,
+            input_dim: int = 3 * 90 * 160,
             encoder_dim: int = 32,
             num_encoder_layers: int = 3,
             num_attention_heads: int = 8,
@@ -109,3 +110,15 @@ class Conformer(nn.Module):
         # outputs = nn.functional.log_softmax(outputs, dim=-1)
         outputs = outputs.reshape(-1, seq_len, 2)
         return outputs
+
+
+if __name__ == "__main__":
+    model = Conformer(num_classes=10,
+                      input_dim=3 * 90 * 160,
+                      encoder_dim=32,
+                      num_encoder_layers=3).cuda()
+    inputs = torch.randn((1, 10, 3 * 90 * 160)).cuda()
+    # 第一种方法
+    flops, params = profile(model, (inputs,))
+    print('flops: ', flops, 'params: ', params)
+    print('flops: %.2f M, params: %.2f M' % (flops / 1000000.0, params / 1000000.0))

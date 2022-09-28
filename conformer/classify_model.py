@@ -11,15 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import math
-
 import torch
 import torch.nn as nn
-from einops import repeat
-from einops.layers.torch import Rearrange
 from thop import profile
 from torch import Tensor
-from typing import Tuple
 
 from .encoder import ConformerEncoder
 from .modules import Linear
@@ -30,7 +25,6 @@ class ClassifyConformer(nn.Module):
     Conformer: Convolution-augmented Transformer for Speech Recognition
     The paper used a one-lstm Transducer decoder, currently still only implemented
     the conformer encoder shown in the paper.
-
     Args:
         num_classes (int): Number of classification classes
         input_dim (int, optional): Dimension of input vector
@@ -44,11 +38,9 @@ class ClassifyConformer(nn.Module):
         conv_dropout_p (float, optional): Probability of conformer convolution module dropout
         conv_kernel_size (int or tuple, optional): Size of the convolving kernel
         half_step_residual (bool): Flag indication whether to use half step residual or not
-
     Inputs: inputs
         - **inputs** (batch, time, dim): Tensor containing input vector
         - **input_lengths** (batch): list of sequence input lengths
-
     Returns: outputs, output_lengths
         - **outputs** (batch, out_channels, time): Tensor produces by conformer.
         - **output_lengths** (batch): list of sequence output lengths
@@ -56,7 +48,8 @@ class ClassifyConformer(nn.Module):
 
     def __init__(
             self,
-            num_classes: int,
+            WT: bool = False,
+            num_classes: int = 100,
             input_dim: int = 3 * 90 * 160,
             encoder_dim: int = 32,
             num_encoder_layers: int = 3,
@@ -86,6 +79,7 @@ class ClassifyConformer(nn.Module):
         )
 
         self.encoder = ConformerEncoder(
+            WT=WT,
             input_dim=input_dim,
             encoder_dim=encoder_dim,
             num_layers=num_encoder_layers,
@@ -112,12 +106,10 @@ class ClassifyConformer(nn.Module):
     def forward(self, inputs: Tensor) -> Tensor:
         """
         Forward propagate a `inputs` and `targets` pair for training.
-
         Args:
             inputs (torch.FloatTensor): A input sequence passed to encoder. Typically for inputs this will be a padded
                 `FloatTensor` of size ``(batch, seq_length, dimension)``.
             input_lengths (torch.LongTensor): The length of input tensor. ``(batch)``
-
         Returns:
             * predictions (torch.FloatTensor): Result of model predictions.
         """
@@ -133,3 +125,16 @@ class ClassifyConformer(nn.Module):
         outputs = nn.functional.log_softmax(outputs, dim=-1)
         # fc_outputs = fc_outputs.reshape(-1, 10, 2)
         return outputs
+
+
+if __name__ == "__main__":
+    model = ClassifyConformer(WT=False,
+                              num_classes=100,
+                              input_dim=3 * 90 * 160,
+                              encoder_dim=32,
+                              num_encoder_layers=3).cuda()
+    inputs = torch.randn((1, 3, 90, 160)).cuda()
+    # 第一种方法
+    flops, params = profile(model, (inputs,))
+    print('flops: ', flops, 'params: ', params)
+    print('flops: %.2f M, params: %.2f M' % (flops / 1000000.0, params / 1000000.0))

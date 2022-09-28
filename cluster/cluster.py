@@ -6,18 +6,20 @@ import os
 
 
 def copy_classes(datapath="cluster"):
-    # 最大数目100，最小数目2
     i = 0
-    f = open(os.path.join(datapath, "cluster_pics.txt"), 'rt')
+
     if os.path.exists(datapath + "/all_class") is False:
         os.mkdir(datapath + "/all_class")
+
+    f = open(os.path.join(datapath, "cluster_pics.txt"), 'rt')
 
     for line in f:
         line = line.replace('\n', '')
         line = line.split(' ')
-        # print(len(line))
+
         class_path = datapath + "/all_class/" + str(i)
         os.mkdir(class_path)
+
         for j in range(0, len(line)):
             shutil.copy(line[j], class_path)
 
@@ -59,7 +61,7 @@ def euclidean_distance(pos1, pos2):
     return math.sqrt(((pos1[0] - pos2[0]) ** 2 + (pos1[1] - pos2[1]) ** 2))
 
 
-def images_clustering(path="whole_path", k=150, epoch=200):
+def images_clustering(path="whole_path", k=100, epoch=400):
 
     pics_list, labels = get_pics(path)
 
@@ -149,5 +151,5 @@ def images_clustering(path="whole_path", k=150, epoch=200):
 
 
 if __name__ == "__main__":
-    # images_clustering(path="../whole_path", k=150, epoch=200)
+    # images_clustering(path="../whole_path", k=100, epoch=400)
     copy_classes(".")
